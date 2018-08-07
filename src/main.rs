@@ -3,25 +3,25 @@ use rand::distributions::Distribution;
 use rand::distributions::Standard;
 use rand::Rng;
 
-const INSTRUCTION_DEFAULT_COUNT: usize = 20;
+const INSTRUCTION_DEFAULT_COUNT: usize = 200;
 
-#[derive(Debug)]
-enum Instruction {
+#[derive(Debug, Copy, Clone)]
+enum CellInstruction {
     Noop,
-    MoveUp,
-    MoveDown,
-    MoveLeft,
-    MoveRight,
+    Move,
+    TurnLeft,
+    TurnRight,
+    Eat,
 }
 
-impl Distribution<Instruction> for Standard {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Instruction {
+impl Distribution<CellInstruction> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> CellInstruction {
         match rng.gen_range(0, 5) {
-            0 => Instruction::Noop,
-            1 => Instruction::MoveUp,
-            2 => Instruction::MoveDown,
-            3 => Instruction::MoveLeft,
-            4 => Instruction::MoveRight,
+            0 => CellInstruction::Noop,
+            1 => CellInstruction::Move,
+            2 => CellInstruction::TurnLeft,
+            3 => CellInstruction::TurnRight,
+            4 => CellInstruction::Eat,
             _ => unreachable!(),
         }
     }
@@ -31,40 +31,114 @@ impl Distribution<Instruction> for Standard {
 struct Gene {
     instruction_pointer: u8,
     cycle_limit: u8,
-    code: Vec<Instruction>,
+    code: Vec<CellInstruction>,
+}
+
+#[derive(Debug, Clone)]
+enum Direction {
+    East,
+    West,
+    South,
+    North,
+}
+
+impl Direction {
+    fn turn_left(&self) -> Direction {
+        match self {
+            Direction::East => Direction::North,
+            Direction::North => Direction::West,
+            Direction::West => Direction::South,
+            Direction::South => Direction::East,
+        }
+    }
+
+    fn turn_right(&self) -> Direction {
+        match self {
+            Direction::East => Direction::South,
+            Direction::South => Direction::West,
+            Direction::West => Direction::North,
+            Direction::North => Direction::East,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum Action {
+    Move,
+    Eat,
 }
 
 #[derive(Debug)]
 struct Ant {
-    x: usize,
-    y: usize,
     energy: usize,
+    current_index: usize,
+    direction: Direction,
     gene: Gene,
+    action: Option<Action>,
 }
 
 impl Ant {
-    fn new(x: usize, y: usize) -> Ant {
+    fn new(current_index: usize) -> Ant {
         Ant {
-            x,
-            y,
+            current_index,
             energy: 0,
+            direction: Direction::North,
             gene: Gene::random(),
+            action: None,
         }
     }
 
-    //    fn execute_gene(&mut self, board: &Board) {
-    //        let current_op = &self.gene.code[0];
-    //
-    //        match current_op {
-    //            Instruction::Noop => {}
-    //            Instruction::MoveUp => self.y -= 1,
-    //            Instruction::MoveDown => self.y += 1,
-    //            Instruction::MoveLeft => self.x -= 1,
-    //            Instruction::MoveRight => self.x += 1,
-    //        }
-    //
-    //        self.gene.instruction_pointer += 1;
-    //    }
+    fn mutate(&mut self) {
+        let mut rng = rand::thread_rng();
+        let index = rng.gen_range(0, self.gene.code.len());
+        self.gene.code[index] = rand::random();
+    }
+
+    fn execute(&mut self) {
+        let current_op = &self.gene.code[self.gene.instruction_pointer as usize];
+        self.action = None;
+
+        match current_op {
+            CellInstruction::TurnLeft => {
+                self.direction = self.direction.turn_left();
+            }
+            CellInstruction::TurnRight => {
+                self.direction = self.direction.turn_right();
+            }
+            CellInstruction::Move => self.action = Some(Action::Move),
+            CellInstruction::Eat => self.action = Some(Action::Eat),
+            _ => {}
+        };
+
+        self.gene.instruction_pointer =
+            (self.gene.instruction_pointer + 1) % (self.gene.code.len() as u8);
+    }
+
+    fn ahead_index(&self, size: usize) -> Option<usize> {
+        let board_size = size * size;
+        match self.direction {
+            Direction::East => if self.current_index + 1 < board_size {
+                Some(self.current_index + 1)
+            } else {
+                None
+            },
+            Direction::West => if self.current_index > 0 {
+                Some(self.current_index - 1)
+            } else {
+                None
+            },
+            Direction::North => if self.current_index >= size {
+                Some(self.current_index - size)
+            } else {
+                None
+            },
+            Direction::South => if self.current_index + size < board_size {
+                Some(self.current_index + size)
+            } else {
+                None
+            },
+        }
+    }
 }
 
 impl Gene {
@@ -78,10 +152,8 @@ impl Gene {
 
     fn random() -> Gene {
         let mut gene = Gene::new();
-        let mut rng = rand::thread_rng();
-        let r = rng.gen_range(1, INSTRUCTION_DEFAULT_COUNT);
 
-        for _ in 0..r {
+        for _ in 0..INSTRUCTION_DEFAULT_COUNT {
             gene.code.push(rand::random());
         }
 
@@ -89,83 +161,97 @@ impl Gene {
     }
 }
 
+#[derive(Debug)]
 enum BoardCell {
     Empty,
     Food,
-    HasAnt(Ant),
+    HasAnt(usize),
 }
 
 struct Board {
-    width: usize,
-    height: usize,
+    side: usize,
     cells: Vec<BoardCell>,
     ants: Vec<Ant>,
 }
 
 impl Board {
-    fn new(width: usize, height: usize) -> Board {
-        let size = width * height;
+    fn new(side: usize) -> Board {
+        let size = side * side;
         let mut rng = rand::thread_rng();
-
-        let count = rng.gen_range(0, size);
-        let mut ants = Vec::with_capacity(count);
-        for _ in 0..count {
-            let rx = rng.gen_range(0, width);
-            let ry = rng.gen_range(0, height);
-            ants.push(Ant::new(rx, ry));
-        }
-
+        let mut ants = Vec::new();
         let mut cells = Vec::with_capacity(size);
-        for _ in 0..size {
-            cells.push(BoardCell::Empty);
+
+        for index in 0..=size {
+            match rng.gen_range(0, 9) {
+                0 => {
+                    ants.push(Ant::new(index));
+                    cells.push(BoardCell::HasAnt(ants.len()));
+                }
+                1 => cells.push(BoardCell::Food),
+                _ => cells.push(BoardCell::Empty),
+            }
         }
 
         Board {
-            width,
-            height,
-            ants,
+            side,
             cells: cells,
+            ants: ants,
         }
     }
 
     fn simulate(&mut self) {
         for ant in self.ants.iter_mut() {
-            let current_op = &ant.gene.code[ant.gene.instruction_pointer as usize];
-
-            match current_op {
-                Instruction::Noop => {}
-                Instruction::MoveUp => {
-                    if ant.y > 0 {
-                        ant.y -= 1;
-                    }
-                }
-                Instruction::MoveDown => {
-                    if ant.y + 1 < self.height {
-                        ant.y += 1;
-                    }
-                }
-                Instruction::MoveLeft => {
-                    if ant.x > 0 {
-                        ant.x -= 1;
-                    }
-                }
-                Instruction::MoveRight => {
-                    if ant.x + 1 < self.width {
-                        ant.x += 1;
-                    }
+            ant.execute();
+            if let Some(ahead_index) = ant.ahead_index(self.side) {
+                match ant.action {
+                    Some(Action::Move) => match self.cells[ahead_index] {
+                        BoardCell::Empty => {
+                            self.cells.swap(ahead_index, ant.current_index);
+                            //println!("moved {} to {}", ant.current_index, ahead_index);
+                            ant.current_index = ahead_index;
+                        }
+                        _ => {}
+                    },
+                    Some(Action::Eat) => match self.cells[ahead_index] {
+                        BoardCell::Food => {
+                            self.cells[ahead_index] = BoardCell::Empty;
+                            //println!("consumed food at {}", ahead_index);
+                            ant.energy += 1;
+                        }
+                        _ => {
+                            ant.mutate();
+                        }
+                    },
+                    None => {}
                 }
             }
-
-            ant.gene.instruction_pointer += 1;
         }
     }
 }
 
 fn main() {
-    let mut board = Board::new(16, 16);
-    println!("{}", board.ants.len());
-    board.simulate();
+    let mut board = Board::new(30);
+    let mut count = 1000;
+    while count > 0 {
+        board.simulate();
+        count -= 1;
+    }
+
     for ant in board.ants {
-        println!("{:?}", ant);
+        println!(
+            "current_index: {} - energy: {}",
+            ant.current_index, ant.energy
+        );
+    }
+
+    for (index, cell) in board.cells.iter().enumerate() {
+        if index % board.side == 0 {
+            println!();
+        }
+        match cell {
+            BoardCell::Empty => print!("."),
+            BoardCell::Food => print!("o"),
+            BoardCell::HasAnt(_) => print!("X"),
+        }
     }
 }
