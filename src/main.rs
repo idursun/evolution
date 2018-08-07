@@ -192,15 +192,11 @@ impl Board {
             }
         }
 
-        Board {
-            side,
-            cells: cells,
-            ants: ants,
-        }
+        Board { side, cells, ants }
     }
 
     fn simulate(&mut self) {
-        for ant in self.ants.iter_mut() {
+        for ant in &mut self.ants {
             ant.execute();
             if let Some(ahead_index) = ant.ahead_index(self.side) {
                 match ant.action {
