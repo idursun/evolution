@@ -3,7 +3,7 @@ use rand::distributions::Distribution;
 use rand::distributions::Standard;
 use rand::Rng;
 
-const INSTRUCTION_DEFAULT_COUNT: usize = 200;
+const INSTRUCTION_DEFAULT_COUNT: usize = 10;
 
 #[derive(Debug, Copy, Clone)]
 enum CellInstruction {
@@ -32,6 +32,14 @@ struct Gene {
     instruction_pointer: u8,
     cycle_limit: u8,
     code: Vec<CellInstruction>,
+}
+
+impl Gene {
+    fn cycle(&mut self) -> CellInstruction {
+        let ret = self.code[self.instruction_pointer as usize];
+        self.instruction_pointer = (self.instruction_pointer + 1) % (self.code.len() as u8);
+        ret
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -64,27 +72,37 @@ impl Direction {
 
 #[derive(Debug)]
 enum Action {
-    Move,
-    Eat,
+    Move(usize),
+    Eat(usize),
 }
 
 #[derive(Debug)]
 struct Ant {
+    is_dead: bool,
     energy: usize,
     current_index: usize,
     direction: Direction,
     gene: Gene,
-    action: Option<Action>,
 }
 
 impl Ant {
     fn new(current_index: usize) -> Ant {
         Ant {
+            is_dead: false,
             current_index,
-            energy: 0,
+            energy: 50,
             direction: Direction::North,
             gene: Gene::random(),
-            action: None,
+        }
+    }
+
+    fn increase_energy(&mut self) {
+        self.energy += 100;
+    }
+
+    fn consume_energy(&mut self) {
+        if self.energy > 0 {
+            self.energy -= 1;
         }
     }
 
@@ -94,24 +112,32 @@ impl Ant {
         self.gene.code[index] = rand::random();
     }
 
-    fn execute(&mut self) {
-        let current_op = &self.gene.code[self.gene.instruction_pointer as usize];
-        self.action = None;
+    fn execute(&mut self, side: usize) -> Option<Action> {
+        let current_op = self.gene.cycle();
 
-        match current_op {
+        let action = match current_op {
             CellInstruction::TurnLeft => {
                 self.direction = self.direction.turn_left();
+                None
             }
             CellInstruction::TurnRight => {
                 self.direction = self.direction.turn_right();
+                None
             }
-            CellInstruction::Move => self.action = Some(Action::Move),
-            CellInstruction::Eat => self.action = Some(Action::Eat),
-            _ => {}
+            CellInstruction::Move => if let Some(ahead_index) = self.ahead_index(side) {
+                Some(Action::Move(ahead_index))
+            } else {
+                None
+            },
+            CellInstruction::Eat => if let Some(ahead_index) = self.ahead_index(side) {
+                Some(Action::Eat(ahead_index))
+            } else {
+                None
+            },
+            _ => None,
         };
 
-        self.gene.instruction_pointer =
-            (self.gene.instruction_pointer + 1) % (self.gene.code.len() as u8);
+        action
     }
 
     fn ahead_index(&self, size: usize) -> Option<usize> {
@@ -165,7 +191,7 @@ impl Gene {
 enum BoardCell {
     Empty,
     Food,
-    HasAnt(usize),
+    Ant(usize),
 }
 
 struct Board {
@@ -185,7 +211,7 @@ impl Board {
             match rng.gen_range(0, 9) {
                 0 => {
                     ants.push(Ant::new(index));
-                    cells.push(BoardCell::HasAnt(ants.len()));
+                    cells.push(BoardCell::Ant(ants.len()));
                 }
                 1 => cells.push(BoardCell::Food),
                 _ => cells.push(BoardCell::Empty),
@@ -196,31 +222,61 @@ impl Board {
     }
 
     fn simulate(&mut self) {
+        //let mut dead_ants: Vec<&Ant> = Vec::new();
         for ant in &mut self.ants {
-            ant.execute();
-            if let Some(ahead_index) = ant.ahead_index(self.side) {
-                match ant.action {
-                    Some(Action::Move) => match self.cells[ahead_index] {
-                        BoardCell::Empty => {
-                            self.cells.swap(ahead_index, ant.current_index);
-                            //println!("moved {} to {}", ant.current_index, ahead_index);
-                            ant.current_index = ahead_index;
+            if ant.is_dead {
+                continue;
+            }
+            ant.consume_energy();
+
+            match ant.execute(self.side) {
+                Some(Action::Move(ahead_index)) => {
+                    if let BoardCell::Empty = self.cells[ahead_index] {
+                        self.cells.swap(ahead_index, ant.current_index);
+                        ant.current_index = ahead_index;
+                        ant.consume_energy();
+
+                        if ant.energy == 0 {
+                            self.cells[ant.current_index] = BoardCell::Food;
+                            ant.is_dead = true;
+                            //dead_ants.push(ant);
                         }
-                        _ => {}
-                    },
-                    Some(Action::Eat) => match self.cells[ahead_index] {
-                        BoardCell::Food => {
-                            self.cells[ahead_index] = BoardCell::Empty;
-                            //println!("consumed food at {}", ahead_index);
-                            ant.energy += 1;
-                        }
-                        _ => {
-                            ant.mutate();
-                        }
-                    },
-                    None => {}
+                    }
+                }
+                Some(Action::Eat(ahead_index)) => {
+                    ant.consume_energy();
+                    if let BoardCell::Food = self.cells[ahead_index] {
+                        self.cells[ahead_index] = BoardCell::Empty;
+                        ant.increase_energy();
+                    }
+                }
+                None => {
+                    ant.mutate();
                 }
             }
+        }
+
+        //for dead_ant in dead_ants {
+        //    let index = self
+        //        .ants
+        //        .iter_mut()
+        //        .position(|x| x.current_index == dead_ant.current_index)
+        //        .unwrap();
+
+        //    self.ants.remove(index);
+        //}
+    }
+}
+
+fn print(board: &Board) {
+    for (index, cell) in board.cells.iter().enumerate() {
+        if index % board.side == 0 {
+            println!();
+        }
+        match cell {
+            BoardCell::Empty => print!("."),
+            BoardCell::Food => print!("o"),
+            BoardCell::Ant(_) => print!("@"),
         }
     }
 }
@@ -231,23 +287,16 @@ fn main() {
     while count > 0 {
         board.simulate();
         count -= 1;
+        print(&board);
     }
 
-    for ant in board.ants {
-        println!(
-            "current_index: {} - energy: {}",
-            ant.current_index, ant.energy
-        );
-    }
-
-    for (index, cell) in board.cells.iter().enumerate() {
-        if index % board.side == 0 {
-            println!();
-        }
-        match cell {
-            BoardCell::Empty => print!("."),
-            BoardCell::Food => print!("o"),
-            BoardCell::HasAnt(_) => print!("X"),
+    for ant in &board.ants {
+        if !ant.is_dead {
+            println!(
+                "{} current_index: {} - energy: {}: {:?}",
+                ant.is_dead, ant.current_index, ant.energy, ant.gene
+            );
         }
     }
+    print(&board);
 }
