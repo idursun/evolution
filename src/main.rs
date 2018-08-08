@@ -2,7 +2,9 @@ extern crate rand;
 use rand::distributions::Distribution;
 use rand::distributions::Standard;
 use rand::Rng;
+use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 const INSTRUCTION_DEFAULT_COUNT: usize = 10;
 
@@ -28,7 +30,7 @@ impl Distribution<CellInstruction> for Standard {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Gene {
     instruction_pointer: u8,
     cycle_limit: u8,
@@ -77,8 +79,9 @@ enum Action {
     Eat(usize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Ant {
+    age: usize,
     energy: usize,
     current_index: usize,
     direction: Direction,
@@ -88,6 +91,7 @@ struct Ant {
 impl Ant {
     fn new(current_index: usize) -> Ant {
         Ant {
+            age: 0,
             current_index,
             energy: 50,
             direction: Direction::North,
@@ -164,6 +168,14 @@ impl Ant {
             },
         }
     }
+
+    fn split(&mut self) -> Ant {
+        let mut cloned = self.clone();
+        self.energy = self.energy / 2;
+        cloned.energy = cloned.energy / 2;
+        cloned.age = 0;
+        cloned
+    }
 }
 
 impl Gene {
@@ -190,40 +202,48 @@ impl Gene {
 enum BoardCell {
     Empty,
     Food,
-    Ant(usize),
+    Ant(Rc<RefCell<Ant>>),
 }
 
 struct Board {
     side: usize,
     cells: Vec<BoardCell>,
-    ants: Vec<Ant>,
 }
 
 impl Board {
     fn new(side: usize) -> Board {
         let size = side * side;
         let mut rng = rand::thread_rng();
-        let mut ants = Vec::new();
         let mut cells = Vec::with_capacity(size);
 
         for index in 0..=size {
             match rng.gen_range(0, 9) {
                 0 => {
-                    ants.push(Ant::new(index));
-                    cells.push(BoardCell::Ant(ants.len()));
+                    let ant = Rc::new(RefCell::new(Ant::new(index)));
+                    cells.push(BoardCell::Ant(ant));
                 }
                 1 => cells.push(BoardCell::Food),
                 _ => cells.push(BoardCell::Empty),
             }
         }
 
-        Board { side, cells, ants }
+        Board { side, cells }
     }
 
     fn simulate(&mut self) {
-        let mut dead_ant_indices: VecDeque<usize> = VecDeque::new();
+        let ant_cells = self
+            .cells
+            .iter()
+            .filter_map(|x| match x {
+                BoardCell::Ant(ref cell) => Some(cell),
+                _ => None,
+            })
+            .cloned()
+            .collect::<Vec<_>>();
 
-        for (index, ant) in self.ants.iter_mut().enumerate() {
+        //println!("ants left {}", ant_cells.len());
+        for cell in ant_cells {
+            let mut ant = cell.borrow_mut();
             ant.consume_energy();
 
             match ant.execute(self.side) {
@@ -232,11 +252,6 @@ impl Board {
                         self.cells.swap(ahead_index, ant.current_index);
                         ant.current_index = ahead_index;
                         ant.consume_energy();
-
-                        if ant.energy == 0 {
-                            self.cells[ant.current_index] = BoardCell::Food;
-                            dead_ant_indices.push_front(index);
-                        }
                     }
                 }
                 Some(Action::Eat(ahead_index)) => {
@@ -250,10 +265,23 @@ impl Board {
                     ant.mutate();
                 }
             }
-        }
 
-        while let Some(index) = dead_ant_indices.pop_front() {
-            self.ants.remove(index);
+            if ant.energy > DEFAULT_SPLIT_ENERGY {
+                if ant.current_index > 0 {
+                    if let BoardCell::Empty = &self.cells[ant.current_index - 1] {
+                        let mut born_ant = ant.split();
+                        born_ant.current_index = ant.current_index - 1;
+                        self.cells[ant.current_index - 1] =
+                            BoardCell::Ant(Rc::new(RefCell::new(born_ant)));
+                    }
+                }
+            }
+
+            if ant.energy == 0 {
+                //println!("was {:?}", &self.cells[ant.current_index]);
+                self.cells[ant.current_index] = BoardCell::Food;
+                //println!("removing {}", ant.current_index);
+            }
         }
     }
 }
