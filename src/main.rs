@@ -118,9 +118,8 @@ impl Ant {
     }
 
     fn execute(&mut self, side: usize) -> Option<Action> {
-        let current_op = self.gene.cycle();
-
-        let action = match current_op {
+        self.age += 1;
+        match self.gene.cycle() {
             CellInstruction::TurnLeft => {
                 self.direction = self.direction.turn_left();
                 None
@@ -140,9 +139,7 @@ impl Ant {
                 None
             },
             _ => None,
-        };
-
-        action
+        }
     }
 
     fn ahead_index(&self, size: usize) -> Option<usize> {
