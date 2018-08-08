@@ -6,7 +6,9 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-const INSTRUCTION_DEFAULT_COUNT: usize = 10;
+const INSTRUCTION_DEFAULT_COUNT: usize = 20;
+const DEFAULT_FOOD_ENERGY: usize = 110;
+const DEFAULT_SPLIT_ENERGY: usize = 120;
 
 #[derive(Debug, Copy, Clone)]
 enum CellInstruction {
@@ -100,7 +102,7 @@ impl Ant {
     }
 
     fn increase_energy(&mut self) {
-        self.energy += 100;
+        self.energy += DEFAULT_FOOD_ENERGY;
     }
 
     fn consume_energy(&mut self) {
