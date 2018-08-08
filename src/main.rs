@@ -291,8 +291,8 @@ fn print(board: &Board) {
             println!();
         }
         match cell {
-            BoardCell::Empty => print!("."),
-            BoardCell::Food => print!("o"),
+            BoardCell::Empty => print!(" "),
+            BoardCell::Food => print!("."),
             BoardCell::Ant(_) => print!("@"),
         }
     }
@@ -307,11 +307,14 @@ fn main() {
         //print(&board);
     }
 
-    for ant in &board.ants {
-        println!(
-            "current_index: {} - energy: {}: {:?}",
-            ant.current_index, ant.energy, ant.gene
-        );
+    for cell in &board.cells {
+        if let BoardCell::Ant(ref ant) = cell {
+            let ant = ant.borrow();
+            println!(
+                "age: {}, current_index: {} - energy: {}: {:?}",
+                ant.age, ant.current_index, ant.energy, ant.gene
+            );
+        }
     }
     print(&board);
 }
