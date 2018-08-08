@@ -3,7 +3,6 @@ use rand::distributions::Distribution;
 use rand::distributions::Standard;
 use rand::Rng;
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::rc::Rc;
 
 const INSTRUCTION_DEFAULT_COUNT: usize = 20;
