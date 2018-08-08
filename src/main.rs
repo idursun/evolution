@@ -2,6 +2,7 @@ extern crate rand;
 use rand::distributions::Distribution;
 use rand::distributions::Standard;
 use rand::Rng;
+use std::collections::VecDeque;
 
 const INSTRUCTION_DEFAULT_COUNT: usize = 10;
 
@@ -78,7 +79,6 @@ enum Action {
 
 #[derive(Debug)]
 struct Ant {
-    is_dead: bool,
     energy: usize,
     current_index: usize,
     direction: Direction,
@@ -88,7 +88,6 @@ struct Ant {
 impl Ant {
     fn new(current_index: usize) -> Ant {
         Ant {
-            is_dead: false,
             current_index,
             energy: 50,
             direction: Direction::North,
@@ -222,11 +221,9 @@ impl Board {
     }
 
     fn simulate(&mut self) {
-        //let mut dead_ants: Vec<&Ant> = Vec::new();
-        for ant in &mut self.ants {
-            if ant.is_dead {
-                continue;
-            }
+        let mut dead_ant_indices: VecDeque<usize> = VecDeque::new();
+
+        for (index, ant) in self.ants.iter_mut().enumerate() {
             ant.consume_energy();
 
             match ant.execute(self.side) {
@@ -238,8 +235,7 @@ impl Board {
 
                         if ant.energy == 0 {
                             self.cells[ant.current_index] = BoardCell::Food;
-                            ant.is_dead = true;
-                            //dead_ants.push(ant);
+                            dead_ant_indices.push_front(index);
                         }
                     }
                 }
@@ -256,15 +252,9 @@ impl Board {
             }
         }
 
-        //for dead_ant in dead_ants {
-        //    let index = self
-        //        .ants
-        //        .iter_mut()
-        //        .position(|x| x.current_index == dead_ant.current_index)
-        //        .unwrap();
-
-        //    self.ants.remove(index);
-        //}
+        while let Some(index) = dead_ant_indices.pop_front() {
+            self.ants.remove(index);
+        }
     }
 }
 
@@ -287,16 +277,14 @@ fn main() {
     while count > 0 {
         board.simulate();
         count -= 1;
-        print(&board);
+        //print(&board);
     }
 
     for ant in &board.ants {
-        if !ant.is_dead {
-            println!(
-                "{} current_index: {} - energy: {}: {:?}",
-                ant.is_dead, ant.current_index, ant.energy, ant.gene
-            );
-        }
+        println!(
+            "current_index: {} - energy: {}: {:?}",
+            ant.current_index, ant.energy, ant.gene
+        );
     }
     print(&board);
 }
