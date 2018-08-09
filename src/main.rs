@@ -5,12 +5,13 @@ use rand::distributions::Distribution;
 use rand::distributions::Standard;
 use rand::Rng;
 use std::cell::RefCell;
+use std::fmt::Write;
 use std::rc::Rc;
 use std::thread;
 use std::time::Duration;
 
-const INSTRUCTION_DEFAULT_COUNT: usize = 100;
-const DEFAULT_FOOD_ENERGY: usize = 110;
+const INSTRUCTION_DEFAULT_COUNT: usize = 20;
+const DEFAULT_FOOD_ENERGY: usize = 200;
 const DEFAULT_SPLIT_ENERGY: usize = 120;
 
 #[derive(Debug, Copy, Clone)]
@@ -20,20 +21,22 @@ enum CellInstruction {
     TurnLeft,
     TurnRight,
     Eat,
+    Attack,
     JmpNe(u8),
     Jmp(u8),
 }
 
 impl Distribution<CellInstruction> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> CellInstruction {
-        match rng.gen_range(0, 7) {
+        match rng.gen_range(0, 8) {
             0 => CellInstruction::Noop,
             1 => CellInstruction::Move,
             2 => CellInstruction::TurnLeft,
             3 => CellInstruction::TurnRight,
             4 => CellInstruction::Eat,
-            5 => CellInstruction::Jmp(rng.gen_range(0, INSTRUCTION_DEFAULT_COUNT as u8)),
-            6 => CellInstruction::JmpNe(rng.gen_range(0, INSTRUCTION_DEFAULT_COUNT as u8)),
+            5 => CellInstruction::Eat,
+            6 => CellInstruction::Jmp(rng.gen_range(0, INSTRUCTION_DEFAULT_COUNT as u8)),
+            7 => CellInstruction::JmpNe(rng.gen_range(0, INSTRUCTION_DEFAULT_COUNT as u8)),
             _ => unreachable!(),
         }
     }
@@ -111,13 +114,15 @@ impl Direction {
 enum Action {
     Move(usize),
     Eat(usize),
+    Attack(usize),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum Team {
     Blue,
     Red,
     Yellow,
+    Cyan,
 }
 
 #[derive(Debug, Clone)]
@@ -133,10 +138,11 @@ struct Ant {
 
 impl Distribution<Team> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Team {
-        match rng.gen_range(0, 3) {
+        match rng.gen_range(0, 4) {
             0 => Team::Blue,
             1 => Team::Red,
             2 => Team::Yellow,
+            3 => Team::Cyan,
             _ => unreachable!(),
         }
     }
@@ -159,9 +165,9 @@ impl Ant {
         self.energy += DEFAULT_FOOD_ENERGY;
     }
 
-    fn consume_energy(&mut self) {
+    fn consume_energy(&mut self, amount: usize) {
         if self.energy > 0 {
-            self.energy -= 1;
+            self.energy -= amount;
         }
     }
 
@@ -186,6 +192,11 @@ impl Ant {
                 }
                 None
             }
+            CellInstruction::Attack => if let Some(ahead_index) = self.ahead_index(side) {
+                Some(Action::Attack(ahead_index))
+            } else {
+                None
+            },
             CellInstruction::TurnLeft => {
                 self.direction = self.direction.turn_left();
                 None
@@ -318,28 +329,39 @@ impl Board {
         //println!("ants left {}", ant_cells.len());
         for cell in ant_cells {
             let mut ant = cell.borrow_mut();
-            ant.consume_energy();
+            ant.consume_energy(1);
 
             match ant.execute(self.side) {
                 Some(Action::Move(ahead_index)) => {
                     if let BoardCell::Empty = self.cells[ahead_index] {
                         self.cells.swap(ahead_index, ant.current_index);
                         ant.current_index = ahead_index;
-                        ant.consume_energy();
+                        ant.consume_energy(1);
                         let around = self.around(ant.current_index);
                         let is_around = around.iter().any(|&x| x);
                         ant.sensor = is_around;
                     }
                 }
+                Some(Action::Attack(ahead_index)) => {
+                    ant.consume_energy(1);
+                    if let BoardCell::Ant(ref ahead_ant) = self.cells[ahead_index] {
+                        let mut ahead_ant = ahead_ant.borrow_mut();
+                        if ahead_ant.team != ant.team {
+                            ahead_ant.consume_energy(ant.energy / 10);
+                        }
+                    }
+                }
                 Some(Action::Eat(ahead_index)) => {
-                    ant.consume_energy();
+                    ant.consume_energy(1);
                     if let BoardCell::Food = self.cells[ahead_index] {
                         self.cells[ahead_index] = BoardCell::Empty;
                         ant.increase_energy();
                     }
                 }
                 None => {
-                    ant.mutate();
+                    if ant.age % 10 == 0 {
+                        ant.mutate();
+                    }
                 }
             }
 
@@ -354,7 +376,7 @@ impl Board {
                 }
             }
 
-            if ant.energy == 0 {
+            if ant.energy <= 0 {
                 self.cells[ant.current_index] = BoardCell::Food;
             }
         }
@@ -362,39 +384,44 @@ impl Board {
 }
 
 fn print(board: &Board) {
-    //print!("{}[2J", 27 as char);
+    let mut buffer = String::new();
+    write!(&mut buffer, "{}[2J", 27 as char).unwrap();
     for (index, cell) in board.cells.iter().enumerate() {
         if index % board.side == 0 {
-            println!();
+            writeln!(&mut buffer);
+            //println!();
         }
         match cell {
-            BoardCell::Empty => print!("."),
-            BoardCell::Food => print!("{}", "x".green()),
+            BoardCell::Empty => write!(&mut buffer, ".").unwrap(),
+            BoardCell::Food => write!(&mut buffer, "{}", "x".green()).unwrap(),
             BoardCell::Ant(ref ant) => {
                 let ant = ant.borrow();
                 let mut text = match ant.team {
                     Team::Red => "@".red(),
                     Team::Blue => "@".blue(),
                     Team::Yellow => "@".yellow(),
+                    Team::Cyan => "@".magenta(),
                 };
 
                 if ant.energy > 100 {
                     text = text.on_green();
                 }
 
-                print!("{}", text);
+                write!(&mut buffer, "{}", text).unwrap();
             }
         }
     }
+    println!("{}", buffer);
 }
 
 fn main() {
-    let mut board = Board::new(55);
+    let mut board = Board::new(50);
     let mut count = 10000;
     while count > 0 {
-        thread::sleep(Duration::from_millis(200));
+        thread::sleep(Duration::from_millis(20));
         board.simulate();
         count -= 1;
+        //println!("{}", count);
         print(&board);
     }
 
