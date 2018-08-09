@@ -236,8 +236,8 @@ impl Ant {
 
     fn split(&mut self) -> Ant {
         let mut cloned = self.clone();
-        self.energy = self.energy / 2;
-        cloned.energy = cloned.energy / 2;
+        self.energy /= 2;
+        cloned.energy /= 2;
         cloned.age = 0;
         cloned
     }
