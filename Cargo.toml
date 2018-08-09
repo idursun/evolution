@@ -5,3 +5,4 @@ authors = ["idursun <ibrahim.dursun@gmail.com>"]
 
 [dependencies]
 rand = "0.5.4"
+colored = "1.6"

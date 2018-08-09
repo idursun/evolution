@@ -1,11 +1,15 @@
+extern crate colored;
 extern crate rand;
+use colored::*;
 use rand::distributions::Distribution;
 use rand::distributions::Standard;
 use rand::Rng;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::thread;
+use std::time::Duration;
 
-const INSTRUCTION_DEFAULT_COUNT: usize = 20;
+const INSTRUCTION_DEFAULT_COUNT: usize = 100;
 const DEFAULT_FOOD_ENERGY: usize = 110;
 const DEFAULT_SPLIT_ENERGY: usize = 120;
 
@@ -81,7 +85,15 @@ enum Action {
 }
 
 #[derive(Debug, Clone)]
+enum Team {
+    Blue,
+    Red,
+    Yellow,
+}
+
+#[derive(Debug, Clone)]
 struct Ant {
+    team: Team,
     age: usize,
     energy: usize,
     current_index: usize,
@@ -89,9 +101,21 @@ struct Ant {
     gene: Gene,
 }
 
+impl Distribution<Team> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Team {
+        match rng.gen_range(0, 3) {
+            0 => Team::Blue,
+            1 => Team::Red,
+            2 => Team::Yellow,
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl Ant {
     fn new(current_index: usize) -> Ant {
         Ant {
+            team: rand::random(),
             age: 0,
             current_index,
             energy: 50,
@@ -285,25 +309,40 @@ impl Board {
 }
 
 fn print(board: &Board) {
+    //print!("{}[2J", 27 as char);
     for (index, cell) in board.cells.iter().enumerate() {
         if index % board.side == 0 {
             println!();
         }
         match cell {
-            BoardCell::Empty => print!(" "),
-            BoardCell::Food => print!("."),
-            BoardCell::Ant(_) => print!("@"),
+            BoardCell::Empty => print!("."),
+            BoardCell::Food => print!("{}", "x".green()),
+            BoardCell::Ant(ref ant) => {
+                let ant = ant.borrow();
+                let mut text = match ant.team {
+                    Team::Red => "@".red(),
+                    Team::Blue => "@".blue(),
+                    Team::Yellow => "@".yellow(),
+                };
+
+                if ant.energy > 100 {
+                    text = text.on_green();
+                }
+
+                print!("{}", text);
+            }
         }
     }
 }
 
 fn main() {
-    let mut board = Board::new(30);
-    let mut count = 1000;
+    let mut board = Board::new(55);
+    let mut count = 10000;
     while count > 0 {
+        thread::sleep(Duration::from_millis(200));
         board.simulate();
         count -= 1;
-        //print(&board);
+        print(&board);
     }
 
     for cell in &board.cells {
