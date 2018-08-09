@@ -11,7 +11,7 @@ use std::thread;
 use std::time::Duration;
 
 const INSTRUCTION_DEFAULT_COUNT: usize = 20;
-const DEFAULT_FOOD_ENERGY: usize = 200;
+const DEFAULT_FOOD_ENERGY: usize = 150;
 const DEFAULT_SPLIT_ENERGY: usize = 120;
 
 #[derive(Debug, Copy, Clone)]
@@ -155,7 +155,7 @@ impl Ant {
             team: rand::random(),
             age: 0,
             current_index,
-            energy: 50,
+            energy: 100,
             direction: Direction::North,
             gene: Gene::random(),
         }
@@ -177,7 +177,7 @@ impl Ant {
         self.gene.code[index] = rand::random();
     }
 
-    fn execute(&mut self, side: usize) -> Option<Action> {
+    fn execute(&mut self, width: usize, height: usize) -> Option<Action> {
         self.age += 1;
         match self.gene.cycle() {
             CellInstruction::JmpNe(target) => {
@@ -192,7 +192,7 @@ impl Ant {
                 }
                 None
             }
-            CellInstruction::Attack => if let Some(ahead_index) = self.ahead_index(side) {
+            CellInstruction::Attack => if let Some(ahead_index) = self.ahead_index(width, height) {
                 Some(Action::Attack(ahead_index))
             } else {
                 None
@@ -205,12 +205,12 @@ impl Ant {
                 self.direction = self.direction.turn_right();
                 None
             }
-            CellInstruction::Move => if let Some(ahead_index) = self.ahead_index(side) {
+            CellInstruction::Move => if let Some(ahead_index) = self.ahead_index(width, height) {
                 Some(Action::Move(ahead_index))
             } else {
                 None
             },
-            CellInstruction::Eat => if let Some(ahead_index) = self.ahead_index(side) {
+            CellInstruction::Eat => if let Some(ahead_index) = self.ahead_index(width, height) {
                 Some(Action::Eat(ahead_index))
             } else {
                 None
@@ -219,8 +219,8 @@ impl Ant {
         }
     }
 
-    fn ahead_index(&self, size: usize) -> Option<usize> {
-        let board_size = size * size;
+    fn ahead_index(&self, width: usize, height: usize) -> Option<usize> {
+        let board_size = width * height;
         match self.direction {
             Direction::East => if self.current_index + 1 < board_size {
                 Some(self.current_index + 1)
@@ -232,13 +232,13 @@ impl Ant {
             } else {
                 None
             },
-            Direction::North => if self.current_index >= size {
-                Some(self.current_index - size)
+            Direction::North => if self.current_index >= width {
+                Some(self.current_index - width)
             } else {
                 None
             },
-            Direction::South => if self.current_index + size < board_size {
-                Some(self.current_index + size)
+            Direction::South => if self.current_index + width < board_size {
+                Some(self.current_index + width)
             } else {
                 None
             },
@@ -262,13 +262,14 @@ enum BoardCell {
 }
 
 struct Board {
-    side: usize,
+    width: usize,
+    height: usize,
     cells: Vec<BoardCell>,
 }
 
 impl Board {
-    fn new(side: usize) -> Board {
-        let size = side * side;
+    fn new(width: usize, height: usize) -> Board {
+        let size = width * height;
         let mut rng = rand::thread_rng();
         let mut cells = Vec::with_capacity(size);
 
@@ -283,7 +284,11 @@ impl Board {
             }
         }
 
-        Board { side, cells }
+        Board {
+            width,
+            height,
+            cells,
+        }
     }
 
     fn around(&self, index: usize) -> [bool; 4] {
@@ -300,14 +305,14 @@ impl Board {
                 _ => false,
             }
         }
-        if index + self.side < self.cells.len() {
-            ret[2] = match self.cells[index + 1] {
+        if index + self.width < self.cells.len() {
+            ret[2] = match self.cells[index + self.width] {
                 BoardCell::Empty => false,
                 _ => false,
             }
         }
-        if index > self.side {
-            ret[3] = match self.cells[index + 1] {
+        if index > self.width {
+            ret[3] = match self.cells[index - self.width] {
                 BoardCell::Empty => false,
                 _ => false,
             }
@@ -331,7 +336,7 @@ impl Board {
             let mut ant = cell.borrow_mut();
             ant.consume_energy(1);
 
-            match ant.execute(self.side) {
+            match ant.execute(self.width, self.height) {
                 Some(Action::Move(ahead_index)) => {
                     if let BoardCell::Empty = self.cells[ahead_index] {
                         self.cells.swap(ahead_index, ant.current_index);
@@ -387,7 +392,7 @@ fn print(board: &Board) {
     let mut buffer = String::new();
     write!(&mut buffer, "{}[2J", 27 as char).unwrap();
     for (index, cell) in board.cells.iter().enumerate() {
-        if index % board.side == 0 {
+        if index % board.width == 0 {
             writeln!(&mut buffer);
             //println!();
         }
@@ -415,14 +420,14 @@ fn print(board: &Board) {
 }
 
 fn main() {
-    let mut board = Board::new(50);
+    let mut board = Board::new(200, 50);
     let mut count = 10000;
     while count > 0 {
-        thread::sleep(Duration::from_millis(20));
         board.simulate();
         count -= 1;
         //println!("{}", count);
         print(&board);
+        thread::sleep(Duration::from_millis(20));
     }
 
     for cell in &board.cells {
