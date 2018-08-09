@@ -11,8 +11,9 @@ use std::thread;
 use std::time::Duration;
 
 const INSTRUCTION_DEFAULT_COUNT: usize = 20;
-const DEFAULT_FOOD_ENERGY: usize = 150;
-const DEFAULT_SPLIT_ENERGY: usize = 120;
+const DEFAULT_ANT_ENERGY: i32 = 50;
+const DEFAULT_FOOD_ENERGY: i32 = 150;
+const DEFAULT_SPLIT_ENERGY: i32 = 120;
 
 #[derive(Debug, Copy, Clone)]
 enum CellInstruction {
@@ -130,7 +131,7 @@ struct Ant {
     sensor: bool,
     team: Team,
     age: usize,
-    energy: usize,
+    energy: i32,
     current_index: usize,
     direction: Direction,
     gene: Gene,
@@ -155,7 +156,7 @@ impl Ant {
             team: rand::random(),
             age: 0,
             current_index,
-            energy: 100,
+            energy: DEFAULT_ANT_ENERGY,
             direction: Direction::North,
             gene: Gene::random(),
         }
