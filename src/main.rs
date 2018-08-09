@@ -355,9 +355,7 @@ impl Board {
             }
 
             if ant.energy == 0 {
-                //println!("was {:?}", &self.cells[ant.current_index]);
                 self.cells[ant.current_index] = BoardCell::Food;
-                //println!("removing {}", ant.current_index);
             }
         }
     }
