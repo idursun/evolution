@@ -219,29 +219,19 @@ impl Ant {
     }
 
     fn ahead_index(&self, width: usize, height: usize) -> Option<usize> {
-        let board_size = width * height;
-        match self.direction {
-            Direction::East => if self.current_index + 1 < board_size {
-                Some(self.current_index + 1)
-            } else {
-                None
-            },
-            Direction::West => if self.current_index > 0 {
-                Some(self.current_index - 1)
-            } else {
-                None
-            },
-            Direction::North => if self.current_index >= width {
-                Some(self.current_index - width)
-            } else {
-                None
-            },
-            Direction::South => if self.current_index + width < board_size {
-                Some(self.current_index + width)
-            } else {
-                None
-            },
+        let board_size = (width * height) as i32;
+        let current_index = self.current_index as i32;
+        let next_index = match self.direction {
+            Direction::East => current_index + 1i32,
+            Direction::West => current_index - 1i32,
+            Direction::North => current_index - width as i32,
+            Direction::South => current_index + width as i32,
+        } as i32;
+
+        if next_index > 0 && next_index < board_size {
+            return Some(next_index as usize);
         }
+        None
     }
 
     fn split(&mut self) -> Ant {
