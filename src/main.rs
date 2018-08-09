@@ -35,7 +35,7 @@ impl Distribution<CellInstruction> for Standard {
             2 => CellInstruction::TurnLeft,
             3 => CellInstruction::TurnRight,
             4 => CellInstruction::Eat,
-            5 => CellInstruction::Eat,
+            5 => CellInstruction::Attack,
             6 => CellInstruction::Jmp(rng.gen_range(0, INSTRUCTION_DEFAULT_COUNT as u8)),
             7 => CellInstruction::JmpNe(rng.gen_range(0, INSTRUCTION_DEFAULT_COUNT as u8)),
             _ => unreachable!(),
@@ -166,10 +166,8 @@ impl Ant {
         self.energy += DEFAULT_FOOD_ENERGY;
     }
 
-    fn consume_energy(&mut self, amount: usize) {
-        if self.energy > 0 {
-            self.energy -= amount;
-        }
+    fn consume_energy(&mut self, amount: i32) {
+        self.energy -= amount;
     }
 
     fn mutate(&mut self) {
