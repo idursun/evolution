@@ -377,17 +377,16 @@ impl Board {
     }
 }
 
-fn print(board: &Board) {
+fn print(board: &Board) -> std::result::Result<(), std::fmt::Error> {
     let mut buffer = String::new();
-    write!(&mut buffer, "{}[2J", 27 as char).unwrap();
+    write!(&mut buffer, "{}[2J", 27 as char)?;
     for (index, cell) in board.cells.iter().enumerate() {
         if index % board.width == 0 {
-            writeln!(&mut buffer);
-            //println!();
+            writeln!(&mut buffer)?;
         }
         match cell {
-            BoardCell::Empty => write!(&mut buffer, ".").unwrap(),
-            BoardCell::Food => write!(&mut buffer, "{}", "x".green()).unwrap(),
+            BoardCell::Empty => write!(&mut buffer, ".")?,
+            BoardCell::Food => write!(&mut buffer, "{}", "x".green())?,
             BoardCell::Ant(ref ant) => {
                 let ant = ant.borrow();
                 let mut text = match ant.team {
