@@ -20,16 +20,20 @@ enum CellInstruction {
     TurnLeft,
     TurnRight,
     Eat,
+    JmpNe(u8),
+    Jmp(u8),
 }
 
 impl Distribution<CellInstruction> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> CellInstruction {
-        match rng.gen_range(0, 5) {
+        match rng.gen_range(0, 7) {
             0 => CellInstruction::Noop,
             1 => CellInstruction::Move,
             2 => CellInstruction::TurnLeft,
             3 => CellInstruction::TurnRight,
             4 => CellInstruction::Eat,
+            5 => CellInstruction::Jmp(rng.gen_range(0, INSTRUCTION_DEFAULT_COUNT as u8)),
+            6 => CellInstruction::JmpNe(rng.gen_range(0, INSTRUCTION_DEFAULT_COUNT as u8)),
             _ => unreachable!(),
         }
     }
@@ -43,6 +47,31 @@ struct Gene {
 }
 
 impl Gene {
+    fn new() -> Gene {
+        Gene {
+            instruction_pointer: 0,
+            cycle_limit: 2,
+            code: vec![],
+        }
+    }
+
+    fn random() -> Gene {
+        let mut gene = Gene::new();
+
+        gene.code.push(CellInstruction::Eat);
+        gene.code.push(CellInstruction::Jmp(0));
+        gene.code.push(CellInstruction::Move);
+        gene.code.push(CellInstruction::Jmp(0));
+        gene.code.push(CellInstruction::TurnLeft);
+        gene.code.push(CellInstruction::Jmp(0));
+        gene.code.push(CellInstruction::JmpNe(2));
+        while gene.code.len() < INSTRUCTION_DEFAULT_COUNT {
+            gene.code.push(CellInstruction::Noop);
+        }
+
+        gene
+    }
+
     fn cycle(&mut self) -> CellInstruction {
         let ret = self.code[self.instruction_pointer as usize];
         self.instruction_pointer = (self.instruction_pointer + 1) % (self.code.len() as u8);
@@ -93,6 +122,7 @@ enum Team {
 
 #[derive(Debug, Clone)]
 struct Ant {
+    sensor: bool,
     team: Team,
     age: usize,
     energy: usize,
@@ -115,6 +145,7 @@ impl Distribution<Team> for Standard {
 impl Ant {
     fn new(current_index: usize) -> Ant {
         Ant {
+            sensor: false,
             team: rand::random(),
             age: 0,
             current_index,
@@ -143,6 +174,18 @@ impl Ant {
     fn execute(&mut self, side: usize) -> Option<Action> {
         self.age += 1;
         match self.gene.cycle() {
+            CellInstruction::JmpNe(target) => {
+                if !self.sensor {
+                    self.gene.instruction_pointer = target;
+                }
+                None
+            }
+            CellInstruction::Jmp(target) => {
+                if self.sensor {
+                    self.gene.instruction_pointer = target;
+                }
+                None
+            }
             CellInstruction::TurnLeft => {
                 self.direction = self.direction.turn_left();
                 None
@@ -200,26 +243,6 @@ impl Ant {
     }
 }
 
-impl Gene {
-    fn new() -> Gene {
-        Gene {
-            instruction_pointer: 0,
-            cycle_limit: 2,
-            code: vec![],
-        }
-    }
-
-    fn random() -> Gene {
-        let mut gene = Gene::new();
-
-        for _ in 0..INSTRUCTION_DEFAULT_COUNT {
-            gene.code.push(rand::random());
-        }
-
-        gene
-    }
-}
-
 #[derive(Debug)]
 enum BoardCell {
     Empty,
@@ -252,6 +275,35 @@ impl Board {
         Board { side, cells }
     }
 
+    fn around(&self, index: usize) -> [bool; 4] {
+        let mut ret = [false; 4];
+        if index > 0 {
+            ret[0] = match self.cells[index - 1] {
+                BoardCell::Empty => false,
+                _ => false,
+            }
+        }
+        if index + 1 < self.cells.len() {
+            ret[1] = match self.cells[index + 1] {
+                BoardCell::Empty => false,
+                _ => false,
+            }
+        }
+        if index + self.side < self.cells.len() {
+            ret[2] = match self.cells[index + 1] {
+                BoardCell::Empty => false,
+                _ => false,
+            }
+        }
+        if index > self.side {
+            ret[3] = match self.cells[index + 1] {
+                BoardCell::Empty => false,
+                _ => false,
+            }
+        }
+        ret
+    }
+
     fn simulate(&mut self) {
         let ant_cells = self
             .cells
@@ -274,6 +326,9 @@ impl Board {
                         self.cells.swap(ahead_index, ant.current_index);
                         ant.current_index = ahead_index;
                         ant.consume_energy();
+                        let around = self.around(ant.current_index);
+                        let is_around = around.iter().any(|&x| x);
+                        ant.sensor = is_around;
                     }
                 }
                 Some(Action::Eat(ahead_index)) => {
