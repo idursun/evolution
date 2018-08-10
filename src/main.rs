@@ -219,19 +219,18 @@ impl Ant {
     }
 
     fn ahead_index(&self, width: usize, height: usize) -> Option<usize> {
-        let board_size = (width * height) as i32;
-        let current_index = self.current_index as i32;
-        let next_index = match self.direction {
-            Direction::East => current_index + 1i32,
-            Direction::West => current_index - 1i32,
-            Direction::North => current_index - width as i32,
-            Direction::South => current_index + width as i32,
-        } as i32;
+        let y = self.current_index / width;
+        let x = self.current_index % width;
 
-        if next_index > 0 && next_index < board_size {
-            return Some(next_index as usize);
-        }
-        None
+        let next_pos = match self.direction {
+            Direction::East if x + 1 < width => Some((x + 1, y)),
+            Direction::West if x > 0 => Some((x - 1, y)),
+            Direction::North if y > 0 => Some((x, y - 1)),
+            Direction::South if y + 1 < height => Some((x, y + 1)),
+            _ => None,
+        };
+
+        next_pos.map(|(x, y)| x + y * width)
     }
 
     fn split(&mut self) -> Ant {
@@ -400,21 +399,22 @@ fn print(board: &Board) -> std::result::Result<(), std::fmt::Error> {
                     text = text.on_green();
                 }
 
-                write!(&mut buffer, "{}", text).unwrap();
+                write!(&mut buffer, "{}", text)?;
             }
         }
     }
     println!("{}", buffer);
+    Result::Ok(())
 }
 
 fn main() {
-    let mut board = Board::new(200, 50);
+    let mut board = Board::new(50, 50);
     let mut count = 10000;
     while count > 0 {
         board.simulate();
         count -= 1;
         //println!("{}", count);
-        print(&board);
+        print(&board).unwrap();
         thread::sleep(Duration::from_millis(20));
     }
 
@@ -427,5 +427,5 @@ fn main() {
             );
         }
     }
-    print(&board);
+    print(&board).unwrap();
 }
