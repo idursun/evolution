@@ -361,15 +361,15 @@ fn print(board: &Board) -> std::result::Result<(), std::fmt::Error> {
             BoardCell::Ant(ref ant) => {
                 let ant = ant.borrow();
                 let mut text = match ant.team {
+                    Team::Red if ant.energy > 100 => "@".black().on_red(),
                     Team::Red => "@".red(),
+                    Team::Blue if ant.energy > 100 => "@".black().on_blue(),
                     Team::Blue => "@".blue(),
+                    Team::Yellow if ant.energy > 100 => "@".black().on_yellow(),
                     Team::Yellow => "@".yellow(),
+                    Team::Cyan if ant.energy > 100 => "@".black().on_magenta(),
                     Team::Cyan => "@".magenta(),
                 };
-
-                if ant.energy > 100 {
-                    text = text.on_green();
-                }
 
                 write!(&mut buffer, "{}", text)?;
             }
