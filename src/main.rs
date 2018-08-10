@@ -263,33 +263,23 @@ impl Board {
         }
     }
 
-    fn around(&self, index: usize) -> [bool; 4] {
-        let mut ret = [false; 4];
-        if index > 0 {
-            ret[0] = match self.cells[index - 1] {
-                BoardCell::Empty => false,
+    fn around(&self, index: usize) -> bool {
+        let around_indices = [
+            index as i32 - 1,
+            index as i32 + 1,
+            index as i32 - self.width as i32,
+            index as i32 + self.width as i32,
+        ];
+
+        let size = (self.width * self.height) as i32;
+
+        around_indices
+            .iter()
+            .filter(|&x| *x < size && *x > 0)
+            .any(|x| match self.cells[*x as usize] {
+                BoardCell::Empty => true,
                 _ => false,
-            }
-        }
-        if index + 1 < self.cells.len() {
-            ret[1] = match self.cells[index + 1] {
-                BoardCell::Empty => false,
-                _ => false,
-            }
-        }
-        if index + self.width < self.cells.len() {
-            ret[2] = match self.cells[index + self.width] {
-                BoardCell::Empty => false,
-                _ => false,
-            }
-        }
-        if index > self.width {
-            ret[3] = match self.cells[index - self.width] {
-                BoardCell::Empty => false,
-                _ => false,
-            }
-        }
-        ret
+            })
     }
 
     fn simulate(&mut self) {
@@ -314,9 +304,7 @@ impl Board {
                         self.cells.swap(ahead_index, ant.current_index);
                         ant.current_index = ahead_index;
                         ant.consume_energy(1);
-                        let around = self.around(ant.current_index);
-                        let is_around = around.iter().any(|&x| x);
-                        ant.sensor = is_around;
+                        ant.sensor = self.around(ant.current_index);
                     }
                 }
                 Some(Action::Attack(ahead_index)) => {
