@@ -224,6 +224,29 @@ impl Ant {
         cloned.age = 0;
         cloned
     }
+
+    fn explosion_box(&self, width: usize, height: usize) -> Vec<usize> {
+        let current_index = self.current_index as i32;
+        let width = width as i32;
+        let height = height as i32;
+
+        let explosion_box = vec![
+            current_index - width - 1,
+            current_index - width,
+            current_index - width + 1,
+            current_index - 1,
+            current_index + 1,
+            current_index + width - 1,
+            current_index + width,
+            current_index + width + 1,
+        ];
+
+        explosion_box
+            .into_iter()
+            .filter(|x| x > &0 && x < &(width * height))
+            .map(|x| x as usize)
+            .collect()
+    }
 }
 
 #[derive(Debug)]
@@ -353,37 +376,15 @@ impl Board {
             }
 
             if ant.energy <= 0 {
-                // exploding ants
                 self.cells[ant.current_index] = BoardCell::Food;
-                if ant.current_index as i32 - 1 >= 0 {
-                    if let BoardCell::Ant(ref ahead_ant) = self.cells[ant.current_index - 1] {
-                        let mut ahead_ant = ahead_ant.borrow_mut();
-                        ahead_ant.consume_energy(ant.energy / 2);
-                    }
-                }
 
-                if ant.current_index + 1 <= self.width * self.height {
-                    if let BoardCell::Ant(ref ahead_ant) = self.cells[ant.current_index + 1] {
-                        let mut ahead_ant = ahead_ant.borrow_mut();
-                        ahead_ant.consume_energy(ant.energy / 2);
-                    }
-                }
+                let explosion_box = ant.explosion_box(self.width, self.height);
 
-                if ant.current_index as i32 - self.width as i32 > 0 {
-                    if let BoardCell::Ant(ref ahead_ant) =
-                        self.cells[ant.current_index - self.width]
-                    {
+                for index in explosion_box {
+                    if let BoardCell::Ant(ref ahead_ant) = self.cells[index] {
                         let mut ahead_ant = ahead_ant.borrow_mut();
-                        ahead_ant.consume_energy(ant.energy / 2);
-                    }
-                }
-
-                if ant.current_index + self.width <= self.width * self.height {
-                    if let BoardCell::Ant(ref ahead_ant) =
-                        self.cells[ant.current_index + self.width]
-                    {
-                        let mut ahead_ant = ahead_ant.borrow_mut();
-                        ahead_ant.consume_energy(ant.energy / 2);
+                        let energy = ahead_ant.energy;
+                        ahead_ant.consume_energy(energy / 2);
                     }
                 }
             }
