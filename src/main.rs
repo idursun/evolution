@@ -62,15 +62,15 @@ impl Gene {
     fn random() -> Gene {
         let mut gene = Gene::new();
 
-        gene.code.push(CellInstruction::Eat);
-        gene.code.push(CellInstruction::Jmp(0));
-        gene.code.push(CellInstruction::Move);
-        gene.code.push(CellInstruction::Jmp(0));
-        gene.code.push(CellInstruction::TurnLeft);
-        gene.code.push(CellInstruction::Jmp(0));
-        gene.code.push(CellInstruction::JmpNe(2));
+        //gene.code.push(CellInstruction::Eat);
+        //gene.code.push(CellInstruction::Jmp(0));
+        //gene.code.push(CellInstruction::Move);
+        //gene.code.push(CellInstruction::Jmp(0));
+        ////gene.code.push(CellInstruction::TurnLeft);
+        //gene.code.push(CellInstruction::Jmp(0));
+        //gene.code.push(CellInstruction::JmpNe(2));
         while gene.code.len() < INSTRUCTION_DEFAULT_COUNT {
-            gene.code.push(CellInstruction::Noop);
+            gene.code.push(rand::random());
         }
 
         gene
