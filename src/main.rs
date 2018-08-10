@@ -179,23 +179,14 @@ impl Ant {
     fn execute(&mut self, width: usize, height: usize) -> Option<Action> {
         self.age += 1;
         match self.gene.cycle() {
-            CellInstruction::JmpNe(target) => {
-                if !self.sensor {
-                    self.gene.instruction_pointer = target;
-                }
+            CellInstruction::JmpNe(target) if !self.sensor => {
+                self.gene.instruction_pointer = target;
                 None
             }
-            CellInstruction::Jmp(target) => {
-                if self.sensor {
-                    self.gene.instruction_pointer = target;
-                }
+            CellInstruction::Jmp(target) if self.sensor => {
+                self.gene.instruction_pointer = target;
                 None
             }
-            CellInstruction::Attack => if let Some(ahead_index) = self.ahead_index(width, height) {
-                Some(Action::Attack(ahead_index))
-            } else {
-                None
-            },
             CellInstruction::TurnLeft => {
                 self.direction = self.direction.turn_left();
                 None
@@ -204,16 +195,9 @@ impl Ant {
                 self.direction = self.direction.turn_right();
                 None
             }
-            CellInstruction::Move => if let Some(ahead_index) = self.ahead_index(width, height) {
-                Some(Action::Move(ahead_index))
-            } else {
-                None
-            },
-            CellInstruction::Eat => if let Some(ahead_index) = self.ahead_index(width, height) {
-                Some(Action::Eat(ahead_index))
-            } else {
-                None
-            },
+            CellInstruction::Attack => self.ahead_index(width, height).map(Action::Attack),
+            CellInstruction::Move => self.ahead_index(width, height).map(Action::Move),
+            CellInstruction::Eat => self.ahead_index(width, height).map(Action::Eat),
             _ => None,
         }
     }
