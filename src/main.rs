@@ -296,7 +296,6 @@ impl Board {
         //println!("ants left {}", ant_cells.len());
         for cell in ant_cells {
             let mut ant = cell.borrow_mut();
-            ant.consume_energy(1);
 
             match ant.execute(self.width, self.height) {
                 Some(Action::Move(ahead_index)) => {
@@ -324,9 +323,7 @@ impl Board {
                     }
                 }
                 None => {
-                    if ant.age % 10 == 0 {
-                        ant.mutate();
-                    }
+                    ant.mutate();
                 }
             }
 
