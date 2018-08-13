@@ -92,7 +92,7 @@ enum Direction {
 }
 
 impl Direction {
-    fn turn_left(&self) -> Direction {
+    fn turn_left(self) -> Direction {
         match self {
             Direction::East => Direction::North,
             Direction::North => Direction::West,
@@ -101,7 +101,7 @@ impl Direction {
         }
     }
 
-    fn turn_right(&self) -> Direction {
+    fn turn_right(self) -> Direction {
         match self {
             Direction::East => Direction::South,
             Direction::South => Direction::West,
