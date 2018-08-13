@@ -222,6 +222,13 @@ struct Board {
     cells: Vec<BoardCell>,
 }
 
+enum BoardMutation {
+    Food(usize),
+    Remove(usize),
+    Born(usize, Rc<RefCell<Ant>>),
+    Swap(usize, usize),
+}
+
 impl Board {
     fn new(width: usize, height: usize) -> Board {
         let size = width * height;
@@ -281,13 +288,16 @@ impl Board {
     }
 
     fn simulate(&mut self) {
-        let mut swaps: Vec<(usize, usize)> = Vec::new();
-        let mut kills: Vec<usize> = Vec::new();
-        let mut removes: Vec<usize> = Vec::new();
-        let mut borns: Vec<(usize, Rc<RefCell<Ant>>)> = Vec::new();
+        let mut mutations: Vec<BoardMutation> = Vec::new();
         for (index, boardcell) in self.cells.iter().enumerate() {
             match boardcell {
-                BoardCell::Food | BoardCell::Empty => continue,
+                BoardCell::Empty => {
+                    let maybe_food: f64 = rand::random::<f64>();
+                    if maybe_food < 0.001 {
+                        mutations.push(BoardMutation::Food(index));
+                    }
+                }
+                BoardCell::Food => continue,
                 BoardCell::Ant(ref cell) => {
                     let mut ant = cell.borrow_mut();
                     let ahead_index = self.ahead_index(index, ant.direction);
@@ -296,8 +306,7 @@ impl Board {
                         Some(Action::Move) => {
                             if let Some(ahead_index) = ahead_index {
                                 if let BoardCell::Empty = self.cells[ahead_index] {
-                                    //self.cells.swap(ahead_index, index);
-                                    swaps.push((ahead_index, index));
+                                    mutations.push(BoardMutation::Swap(ahead_index, index));
                                     ant.consume_energy(1);
                                     ant.sensor = self.around(index);
                                 }
@@ -318,8 +327,7 @@ impl Board {
                             ant.consume_energy(1);
                             if let Some(ahead_index) = ahead_index {
                                 if let BoardCell::Food = self.cells[ahead_index] {
-                                    //self.cells[ahead_index] = BoardCell::Empty;
-                                    removes.push(ahead_index);
+                                    mutations.push(BoardMutation::Remove(ahead_index));
                                     ant.increase_energy();
                                 }
                             }
@@ -330,33 +338,33 @@ impl Board {
                     }
 
                     if ant.energy > DEFAULT_SPLIT_ENERGY {
-                        if let BoardCell::Empty = &self.cells[index - 1] {
-                            let mut born_ant = ant.split();
-                            borns.push((index - 1, Rc::new(RefCell::new(born_ant))));
-                            //self.cells[index - 1] = BoardCell::Ant(Rc::new(RefCell::new(born_ant)));
+                        if index > 0 {
+                            if let BoardCell::Empty = &self.cells[index - 1] {
+                                let mut born_ant = ant.split();
+                                mutations.push(BoardMutation::Born(
+                                    index - 1,
+                                    Rc::new(RefCell::new(born_ant)),
+                                ));
+                            }
                         }
                     }
 
                     if ant.energy <= 0 {
-                        kills.push(index);
-                        //self.cells[index] = BoardCell::Food;
+                        mutations.push(BoardMutation::Food(index));
                     }
                 }
             }
         }
 
-        for (from, to) in swaps {
-            self.cells.swap(from, to);
-        }
-
-        for kill in kills {
-            self.cells[kill] = BoardCell::Food;
-        }
-        for remove in removes {
-            self.cells[remove] = BoardCell::Empty;
-        }
-        for (index, born) in borns {
-            self.cells[index] = BoardCell::Ant(Rc::clone(&born));
+        for mutation in mutations {
+            match mutation {
+                BoardMutation::Food(index) => self.cells[index] = BoardCell::Food,
+                BoardMutation::Remove(index) => self.cells[index] = BoardCell::Empty,
+                BoardMutation::Swap(from, to) => self.cells.swap(from, to),
+                BoardMutation::Born(index, born) => {
+                    self.cells[index] = BoardCell::Ant(Rc::clone(&born));
+                }
+            }
         }
     }
 }
