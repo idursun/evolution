@@ -243,7 +243,7 @@ impl Ant {
 
         explosion_box
             .into_iter()
-            .filter(|x| x > &0 && x < &(width * height))
+            .filter(|&x| x > 0 && x <= (width * height))
             .map(|x| x as usize)
             .collect()
     }
@@ -424,7 +424,7 @@ fn print(board: &Board) -> std::result::Result<(), std::fmt::Error> {
 }
 
 fn main() {
-    let mut board = Board::new(50, 50);
+    let mut board = Board::new(140, 50);
     let mut count = 10000;
     while count > 0 {
         board.simulate();
