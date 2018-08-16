@@ -225,26 +225,26 @@ impl Ant {
         cloned
     }
 
-    fn explosion_box(&self, width: usize, height: usize) -> Vec<usize> {
+    fn explosion_box(&self, width: i32, height: i32) -> Vec<usize> {
         let current_index = self.current_index as i32;
-        let width = width as i32;
-        let height = height as i32;
+        let y = current_index / width;
+        let x = current_index % width;
 
         let explosion_box = vec![
-            current_index - width - 1,
-            current_index - width,
-            current_index - width + 1,
-            current_index - 1,
-            current_index + 1,
-            current_index + width - 1,
-            current_index + width,
-            current_index + width + 1,
+            (x - 1, y - 1),
+            (x, y - 1),
+            (x + 1, y - 1),
+            (x - 1, y),
+            (x + 1, y),
+            (x - 1, y + 1),
+            (x, y + 1),
+            (x + 1, y + 1),
         ];
 
         explosion_box
             .into_iter()
-            .filter(|&x| x > 0 && x <= (width * height))
-            .map(|x| x as usize)
+            .filter(|&(x, y)| x >= 0 && x < width && y >= 0 && y < height)
+            .map(|(x, y)| (x + y * width) as usize)
             .collect()
     }
 }
@@ -378,7 +378,7 @@ impl Board {
             if ant.energy <= 0 {
                 self.cells[ant.current_index] = BoardCell::Food;
 
-                let explosion_box = ant.explosion_box(self.width, self.height);
+                let explosion_box = ant.explosion_box(self.width as i32, self.height as i32);
 
                 for index in explosion_box {
                     if let BoardCell::Ant(ref ahead_ant) = self.cells[index] {
