@@ -59,7 +59,7 @@ fn main() {
         if let BoardCell::Ant(ref ant) = cell {
             let ant = ant.borrow();
             println!(
-                "age: {}, current_index: {} - energy: {}: {:?}",
+                "* age: {}, current_index: {} - energy: {}: {:?}",
                 ant.age, index, ant.energy, ant.gene
             );
         }
