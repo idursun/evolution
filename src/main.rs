@@ -50,7 +50,6 @@ fn main() {
     while count > 0 {
         board.simulate();
         count -= 1;
-        //println!("{}", count);
         print(&board).unwrap();
         thread::sleep(Duration::from_millis(20));
     }
